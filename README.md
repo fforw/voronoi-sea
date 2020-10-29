@@ -1,5 +1,5 @@
-# Schalke 04 shader
+# Voronoi Raymarcher
 
-Raymarching shader showing the logo of my favorite soccer club flying through a coal mine.
+Raymarching shader showing the a cube floating on a wavy sea.
 
-[Live demo](https://fforw.github.io/shade04/)
+[Live demo](https://fforw.github.io/voronoi-sea/)
