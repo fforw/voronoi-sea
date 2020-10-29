@@ -53,13 +53,6 @@ function resize()
     gl.viewport(0, 0, canvas.width, canvas.height);
 }
 
-window.onload = () => {
-
-    requestAnimationFrame(main);
-};
-
-
-
 function createShader(gl, type, source) {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, source);
@@ -97,11 +90,10 @@ function printError(msg)
 
 function main(time)
 {
-    const start = perfNow();
     const f = mouseDown ? 1 : -1;
 
     // update uniforms
-    gl.uniform1f(u_time, time / 1000.0);
+    gl.uniform1f(u_time, perfNow() / 1000.0);
     gl.uniform2f(u_resolution, config.width, config.height);
     gl.uniform4f(u_mouse, mouseX, config.height - mouseY, startX * f, (config.height - startY) * f);
 

@@ -16,7 +16,7 @@ out vec4 outColor;
 
 
 #define MAX_STEPS 100
-#define MAX_DIST 300.
+#define MAX_DIST 75.
 #define SURF_DIST .001
 
 #define ROT(a) mat2(cos(a), -sin(a), sin(a), cos(a))
@@ -254,46 +254,67 @@ const mat2 fourShear = SHEARX(-0.20943951023931953);
 
 
 const float sin60 = sin(tau/6.0);
+vec2 N22 (vec2 p) {
+    vec3 a = fract(p.xyx*vec3(123.34, 234.34, 345.65));
+    a += dot(a, a+34.45);
+    return fract(vec2(a.x*a.y, a.y*a.z));
+}
+
+float atan2(in float y, in float x)
+{
+    return abs(x) > abs(y) ? hpi - atan(x,y) : atan(y,x);
+}
+
+
+
+float getHeight(vec2 uv)
+{
+    vec2 gv = fract(uv) - 0.5;
+    vec2 id = floor(uv);
+
+    vec2 cid = vec2(0);
+    float minDist = 1e6;
+
+    float t = u_time;
+
+    for (float y = -1.0; y <= 1.0; y++)
+    {
+        for (float x = -1.0; x <= 1.0; x++)
+        {
+            vec2 off = vec2(x,y);
+            vec2 n = N22(id + off);
+
+            vec2 p = off + sin( n * t) * 0.5;
+            float d = length(gv - p);
+            if (d < minDist)
+            {
+                minDist = d;
+                cid = id + off;
+            }
+        }
+    }
+
+    return minDist * minDist * minDist;
+}
+
+float getBaseSea(vec2 p, float t)
+{
+    return sin(p.y * 0.37 - t) * 0.7 - sin(p.x * 0.41 - t) * 0.5;
+}
 
 vec2 getDistance(vec3 p) {
 
     float t = u_time * 0.61;
 
     // ground plane
-    float pd = p.y;
 
-    vec2 result = vec2(1e6, 0);
+    float pd = p.y -getHeight(p.xz) * 0.4 + getBaseSea(p.xz, t);
 
-    vec3 p2 = p;
-    p2.x = abs(p2.x) - 1.5 + sin(t) * 0.5;
+    vec2 result = vec2(pd, 3.0);
 
-    vec3 n = normalize(vec3(1,cos(t * 1.1),1));
-    p2 -= 2.0 * n * min(0.0, dot(p2,n));
+    float box = dBox(p - vec3(0,-getBaseSea(vec2(0,9), t),9), vec3(1));
 
-    n = normalize(vec3(cos(t),sin(-t * 1.2),0));
-    p2 -= 2.0 * n * min(0.0, dot(p2,n));
-
-    n = normalize(vec3(-1,1,1));
-    p2 -= 2.0 * n * min(0.0, dot(p2,n));
-
-    n = normalize(vec3(0,sin(t),-1));
-    p2 -= 2.0 * n * min(0.0, dot(p2,n));
-
-    n = normalize(vec3(1,cos(-t * 1.3),1));
-    p2 -= 2.0 * n * min(0.0, dot(p2,n));
-
-
-    float c = 10.0;
-    vec3 q = p2;//mod(p2+0.5*c,c)-0.5*c;
-
-    float box = dBox(q - vec3(cos(t*2.1),1,0), vec3(0.95)) - 0.2;
-    float box2 = dBox(q - vec3(1,cos(t*2.0),0), vec3(0.95)) - 0.2;
-    float box3 = dBox(q - vec3(0,-1,0), vec3(0.95)) - 0.2;
-
-    //result = opUnion(result, pd, 3.0);
     result = opUnion(result, box, 1.0);
-    result = opUnion(result, box2, 2.0);
-    result = opUnion(result, box3, 3.0);
 
     return result;
 }
@@ -341,28 +362,38 @@ vec3 getPaletteColor(float id)
 
 
 
+vec3 applyFog(
+    in vec3  rgb,      // original color of the pixel
+    in float distance, // camera to point distance
+    in vec3  rayOri,   // camera position
+    in vec3  rayDir,
+    in vec3 p     // camera to point vector
+)
+{
+    float pos = p.z;
+
+    float c = 0.01  ;
+    float b = 0.95;// + sin((pos + p.x * sin(pos * 0.27)) * 0.31 ) * 0.15 + sin(pos * 0.17 ) * 0.15;
+
+    float fogAmount = c * exp(-rayOri.y*b) * (1.0-exp( -distance*rayDir.y*b ))/rayDir.y;
+    vec3  fogColor  = vec3(1);
+    return mix( rgb, fogColor, fogAmount );
+}
+
 void main(void)
 {
     vec2 uv = (gl_FragCoord.xy-.5*u_resolution.xy)/u_resolution.y;
     vec2 m = u_mouse.xy/u_resolution.xy;
 
-    float c = 0.4;
-
-    //vec2 tid = floor(uv / c);
-
-    //uv = (mod(uv+0.5*c,c)-0.5*c)/c;
-
     vec3 col = vec3(0);
-//    vec3 ro = vec3(
-//    (cos(u_time * 1.7) + cos(u_time)) * 0.8,
-//    (sin(u_time * 1.3) - sin(u_time * 1.9)) * 0.8,
-//        -10.0 + sin(u_time) * 2.0
-//    );
+    vec3 ro = vec3(
+        0,
+        3,
+        -8
+    );
 
-    vec3 ro = vec3(0,3,-8);
-    //    ro.yz *= Rot((-m.y + 0.5)* 7.0);
-    ro.xz *= Rot((-m.x + 0.5)* 7.0 );
-
+    ro.yz *= Rot((-m.y + 0.5)* 7.0);
+    ro.xz *= Rot((-m.x + 0.5)* 7.0);
 
     vec3 lookAt = vec3(0);
 
@@ -372,35 +403,42 @@ void main(void)
 
     float d = result.x;
 
+    vec3 p = ro + rd * d;
     if (d < MAX_DIST) {
-        vec3 p = ro + rd * d;
 
-        vec3 lightPos = ro + vec3(0,2,0);
+        vec3 lightPos = ro + vec3(0,1,0);
         vec3 lightDir = normalize(lightPos - p);
         vec3 norm = getNormal(p);
 
-        vec3 lightColor = vec3(1.0);
+        vec3 lightColor = vec3(1);
 
         float id = result.y;
 
         // ambient
-        vec3 ambient = lightColor * vec3(0.01,0.005,0);
+        vec3 ambient = lightColor * vec3(0.001);
 
         // diffuse
         float diff = max(dot(norm, lightDir), 0.0);
         vec3 tone = getPaletteColor(id);
+
+        if (id == 4.0)
+        {
+            tone *= snoise(p + vec3(0,0, u_time * 10.0)) * 0.5;
+        }
+
         vec3 diffuse = lightColor * (diff * tone);
 
         // specular
         vec3 viewDir = normalize(ro);
         vec3 reflectDir = reflect(-lightDir, norm);
         float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_shiny[int(id)]);
-        vec3 specular = lightColor * spec * vec3(0.7843,0.8823,0.9451);
+        vec3 specular = lightColor * spec * vec3(0.7843,0.8823,0.9451) * 0.1;
 
-        col = clamp((ambient + diffuse + specular), 0.0, 1.0);
+        col = (ambient + diffuse + specular);
 
-//        col =  dsQ * 0.2 + tone * dif * dsQ * 50.0;
     }
+    col = applyFog(col, d, ro, rd, p);
+
 
     col = pow(col, vec3(1.0/2.2));
 
